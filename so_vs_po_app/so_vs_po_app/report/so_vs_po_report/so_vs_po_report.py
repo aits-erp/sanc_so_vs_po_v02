@@ -457,14 +457,49 @@ def get_data(filters):
         INNER JOIN `tabSales Order Item` soi
             ON soi.parent = so.name
 
-        -- ── PO item matched by SO name + SO item ──
+        # -- ── PO item matched by SO name + SO item ──
+        # LEFT JOIN `tabPurchase Order Item` poi
+        #      ON poi.sales_order      = so.name
+        #     AND poi.sales_order_item = soi.name
+
+        # -- ── PO header — only submitted ──
+        # LEFT JOIN `tabPurchase Order` po
+        #     ON po.name      = poi.parent
+        #    AND po.docstatus = 1
+
+
+                # ── PO item matched by SO name + SO item ──
+        # Select the submitted PO.
+        # If an amended PO exists, prefer the amended PO.
         LEFT JOIN `tabPurchase Order Item` poi
              ON poi.sales_order      = so.name
             AND poi.sales_order_item = soi.name
+            AND poi.parent = (
+                SELECT po_selected.name
+                FROM `tabPurchase Order` po_selected
 
-        -- ── PO header — only submitted ──
+                INNER JOIN `tabPurchase Order Item` poi_selected
+                    ON poi_selected.parent = po_selected.name
+
+                WHERE po_selected.docstatus = 1
+                  AND poi_selected.sales_order = so.name
+                  AND poi_selected.sales_order_item = soi.name
+
+                ORDER BY
+                    CASE
+                        WHEN po_selected.amended_from IS NOT NULL
+                        THEN 1
+                        ELSE 0
+                    END DESC,
+                    po_selected.creation DESC,
+                    po_selected.name DESC
+
+                LIMIT 1
+            )
+
+        # ── PO header — only submitted ──
         LEFT JOIN `tabPurchase Order` po
-            ON po.name      = poi.parent
+            ON po.name = poi.parent
            AND po.docstatus = 1
 
         LEFT JOIN `tabSupplier` sup
